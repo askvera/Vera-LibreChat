@@ -1,2 +1,6 @@
 image:
   repository: 769378065131.dkr.ecr.us-east-2.amazonaws.com/vera-librechat
+
+config:
+  MEILI_HOST: http://meilisearch.vera.svc.cluster.local:7700
+  MEILI_HTTP_ADDR: meilisearch.librechat.svc.cluster.local:7700
