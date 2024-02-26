@@ -1,0 +1,245 @@
+# Alerts Reviewers in Slack about PRs
+name: PR Slack Notifications
+run-name: Posting PR Info to Slack
+on:
+  pull_request:
+    types: [review_requested]
+  pull_request_review:
+    types: [submitted]
+jobs:
+  # notifies a review has started
+  notify_reviewer:
+    if: github.event_name == 'pull_request' && github.event.action == 'review_requested'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Get Slack users as vars
+        run: |
+          echo "REQUESTER=$(echo $USER_MAPPING | jq -r '."${{ github.event.sender.login }}"')" >> $GITHUB_ENV
+          echo "REVIEWER=$(echo $USER_MAPPING | jq -r '."${{ github.event.requested_reviewer.login }}"')" >> $GITHUB_ENV
+        env: 
+          USER_MAPPING: ${{ vars.SLACK_USER_MAPPING }}
+
+            
+      - name: "Post to #cicd"
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          # Slack channel id, channel name, or user id to post message.
+          # See also: https://api.slack.com/methods/chat.postMessage#channels
+          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
+          channel-id: 'cicd'
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":pr-reviewed: :exclamation: PR Review Requested",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":github: *${{ github.event.pull_request.base.repo.name }}*"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": ":pr-opened: *${{ github.event.pull_request.title }}*"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "block_id": "sectionBlockOnlyMrkdwn",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<@${{ env.REQUESTER }}> requested a review from <@${{ env.REVIEWER }}>\n"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View PR",
+                        "emoji": true
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}",
+                      "value": "click_me_123",
+                      "action_id": "actionId-0"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+
+  notify_approved:
+    if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Get Slack users as vars
+        run: |
+          echo "PR_AUTHOR=$(echo $USER_MAPPING | jq -r '."${{ github.event.pull_request.user.login }}"')" >> $GITHUB_ENV
+        env: 
+          USER_MAPPING: ${{ vars.SLACK_USER_MAPPING }}
+      - name: "Post to #cicd"
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'cicd'
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":pr-reviewed: :pr-approved: PR Approved",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":github: *${{ github.event.pull_request.base.repo.name }}*"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": ":pr-opened: *${{ github.event.pull_request.title }}*"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "block_id": "sectionBlockOnlyMrkdwn",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<@${{ env.PR_AUTHOR }}> your PR has been approved. Ready to merge!\n"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View PR",
+                        "emoji": true
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}",
+                      "value": "click_me_123",
+                      "action_id": "actionId-0"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  
+  notify_changes_needed:
+    if: github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Get Slack users as vars
+        run: |
+          echo "PR_AUTHOR=$(echo $USER_MAPPING | jq -r '."${{ github.event.pull_request.user.login }}"')" >> $GITHUB_ENV
+        env: 
+          USER_MAPPING: ${{ vars.SLACK_USER_MAPPING }}
+      - name: "Post to #cicd"
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          # Slack channel id, channel name, or user id to post message.
+          # See also: https://api.slack.com/methods/chat.postMessage#channels
+          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
+          channel-id: 'cicd'
+          # For posting a simple plain text message
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":pr-reviewed: :X: PR Changes Requested",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":github: *${{ github.event.pull_request.base.repo.name }}*"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": ":pr-opened: *${{ github.event.pull_request.title }}*"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "block_id": "sectionBlockOnlyMrkdwn",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<@${{ env.PR_AUTHOR }}> your PR has changes requested. Please address comments and re-submit.\n"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View PR",
+                        "emoji": true
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}",
+                      "value": "click_me_123",
+                      "action_id": "actionId-0"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
