@@ -1,0 +1,307 @@
+name: CICD
+run-name: ${{ github.actor }} is testing changes 🚀
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+permissions:
+  id-token: write   # This is required for requesting the JWT for auth with AWS
+  contents: read    # This is required for actions/checkout
+env:
+  APP_NAME: chat-app
+  BUILD_ARTIFACT_PATH: s3://dev-vera-ui-artifacts/chat-app/
+  STATIC_SITE_BUCKET: s3://dev-vera-chat-app/
+  BUILD_DIR: dist/
+  ENV_VAR_PATH: .github/dev.env
+jobs:
+  # first job is to just run tests, no multi platform build
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      # summary
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+
+      # checkout code
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+
+      # aws config
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::769378065131:role/GithubActionsRole
+          role-session-name: cicdsession
+          aws-region: us-east-2
+      - name: Log AWS role being used
+        run: aws sts get-caller-identity
+
+
+      # Slack notification start
+      - name: Get PR Title
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{github.event.head_commit.message }}" | head -n 1 >> temp
+          echo "PR_TITLE=$(cat temp)" >> $GITHUB_ENV
+
+      # post in #cicd to alert build/deploy has started
+      - name: Slack Alert PR Merged
+        id: slack_pr_merged
+        if: github.ref == 'refs/heads/main'
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'cicd'
+          # NOTE: Commit title should match PR title
+          payload: |
+            {
+              "text": "PR Merged: ${{ github.event.repository.name }}",
+              "blocks": [
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":pr-merged: PR Merged",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":github: *${{ github.event.repository.name }}*"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": ":pr-opened: *${{ env.PR_TITLE }}*"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "block_id": "sectionBlockOnlyMrkdwn",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Build & Deployment to Dev started"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "value": "click_me_123",
+                      "action_id": "actionId-0"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      
+      # create tag using commit
+      - name: Get version tag from package.json
+        run: echo "VERSION=$(cat package.json| jq -r .version)" >> $GITHUB_ENV
+      - name: Create PR TAG
+        run: echo "NEXT_PR_TAG=$(bash .github/workflows/get_next_pr_tag.sh ${{ env.BUILD_ARTIFACT_PATH }} ${{ env.VERSION }})" >> $GITHUB_ENV
+        shell: bash
+      - name: Create SHA Tag
+        run: echo "SHA_TAG=${VERSION}.${GITHUB_SHA:0-7}" >> $GITHUB_ENV
+      - name: Echo tags
+        run: echo "Building version ${{ env.VERSION }} with tags ${{ env.NEXT_PR_TAG }} and ${{ env.SHA_TAG }}"
+      - name: Set S3 build artifact path
+        run: |
+            echo "ARTIFACT_FILENAME=$(echo '${{ env.APP_NAME }}_${{ env.NEXT_PR_TAG }}.tar.gz')" >> $GITHUB_ENV
+            echo "ARTIFACT_S3_PREFIX=$(echo '${{ env.BUILD_ARTIFACT_PATH }}${{ env.NEXT_PR_TAG }}')" >> $GITHUB_ENV
+      
+      # BUILD & TEST
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+      - name: Run tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build:dev
+    
+      ## UPLOAD TO S3
+      - name: Upload Artifact
+        if: github.ref == 'refs/heads/main'
+        run: |
+            tar -czf ${{ env.ARTIFACT_FILENAME }} ${{ env.BUILD_DIR }}
+            echo "Uploading ${{ env.ARTIFACT_FILENAME }} to ${{ env.ARTIFACT_S3_PREFIX }}/"
+            aws s3 cp ${{ env.ARTIFACT_FILENAME }} ${{ env.ARTIFACT_S3_PREFIX }}/${{ env.ARTIFACT_FILENAME }}
+            echo $SHA_TAG >> commit.txt
+            aws s3 cp commit.txt ${{ env.ARTIFACT_S3_PREFIX }}/commit.txt
+
+      - name: "Slack Alert Built"
+        uses: slackapi/slack-github-action@v1.24.0
+        if: github.ref == 'refs/heads/main'
+        with:
+          channel-id: 'cicd'
+          payload: |
+            {
+              "text": ${{ toJson(env.SLACK_MSG) }},
+              "thread_ts": ${{ steps.slack_pr_merged.outputs.ts }}
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_MSG: |
+            :bucket: :white_check_mark: *Build Artifact Uploaded*
+            Tags: 
+                * `${{ env.BUILD_ARTIFACT_PATH }}`
+                * `${{ env.NEXT_PR_TAG }}`
+      
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+    outputs:
+      artifact_uri: ${{ env.ARTIFACT_S3_PREFIX }}/${{ env.ARTIFACT_FILENAME }}
+      slack_post_ts: ${{ steps.slack_pr_merged.outputs.ts }}
+
+  deploy_to_dev:
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    # only run on pushes to main branch (aka merging a PR)
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::769378065131:role/GithubActionsRole
+          role-session-name: cicdsession
+          aws-region: us-east-2
+      
+      - name: Download Artifact
+        run: |
+            aws s3 cp ${{ needs.build_and_test.outputs.artifact_uri }} artifact.tar.gz
+            tar -xzf artifact.tar.gz dist
+      
+      - name: Deploy
+        run: aws s3 sync ${{ env.BUILD_DIR }} ${{ env.STATIC_SITE_BUCKET }} --delete
+
+      - name: "Slack Alert Deployed"
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'cicd'
+          payload: |
+            {
+              "text": ${{ toJson(env.SLACK_MSG) }},
+              "thread_ts": ${{ needs.build_and_test.outputs.slack_post_ts }}
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_MSG: |
+            :white_check_mark: *Static site deployed*
+  
+  failure_alert:
+    runs-on: ubuntu-latest
+    needs: [build_and_test, deploy_to_dev]
+    if: failure() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Get PR Title
+        run: |
+          echo "${{github.event.head_commit.message }}" | head -n 1 >> temp
+          echo "PR_TITLE=$(cat temp)" >> $GITHUB_ENV
+
+      # post in #cicd to alert build/deploy has started
+      - name: Slack Alert Deploy Failed
+        if: github.ref == 'refs/heads/main'
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'cicd'
+          # NOTE: Commit title should match PR title
+          payload: |
+            {
+              "text": "Deployment Failed: ${{ github.event.repository.name }}",
+              "blocks": [
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":bangbang: Deployment Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":github: *${{ github.event.repository.name }}*"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": ":pr-opened: *${{ env.PR_TITLE }}*"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "block_id": "sectionBlockOnlyMrkdwn",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Deployment failed after merging :cry:. See workflow logs for details"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "value": "click_me_123",
+                      "action_id": "actionId-0"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          
