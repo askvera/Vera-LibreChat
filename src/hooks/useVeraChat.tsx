@@ -12,13 +12,12 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { VERA_HEADER } from '~/utils/constants';
 import { EVENT_TYPES } from '~/types/events';
 import { BASE_API_URL } from '~/services/api/setup';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 // this to be set somewhere else
 export default function useVeraChat(index = 0, paramId: string | undefined) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const location = useLocation();
   const { token, user } = useAuthStore();
   const [abortController, setAbortController] = useState(new AbortController());
   const [showStopButton, setShowStopButton] = useState(false);
@@ -159,6 +158,7 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
 
   const processEventMessage = (data) => {
     let currentMessages: TMessage[] | null = getMessages() ?? [];
+    if (data.is_skipped) console.log('skipped: ', data);
     switch (data.event_type) {
       case EVENT_TYPES.INIT_CONVERSATION:
         console.log('conversation:', data);
@@ -169,19 +169,19 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
         // console.log(EVENT_TYPES.INIT_INTERACTION, ':', data);
         break;
       case EVENT_TYPES.PROCESS_PROMPT:
-        setCurrEvent('Processing Prompt');
+        if (!data.is_skipped) setCurrEvent('Processing Prompt');
         // console.log(EVENT_TYPES.PROCESS_PROMPT, ':', data);
         break;
       case EVENT_TYPES.ROUTE_PROMPT:
-        setCurrEvent('Routing Prompt');
+        if (!data.is_skipped) setCurrEvent('Routing Prompt');
         // console.log(EVENT_TYPES.ROUTE_PROMPT, ':', data);
         break;
       case EVENT_TYPES.GENERATE_RESPONSE:
-        setCurrEvent('Generating Response');
+        if (!data.is_skipped) setCurrEvent('Generating Response');
         // console.log(EVENT_TYPES.GENERATE_RESPONSE, ':', data);
         break;
       case EVENT_TYPES.PROCESS_RESPONSE:
-        setCurrEvent('Processing Response');
+        if (!data.is_skipped) setCurrEvent('Processing Response');
         // console.log(EVENT_TYPES.PROCESS_RESPONSE, ':', data);
         break;
       case EVENT_TYPES.MESSAGE:
@@ -225,8 +225,9 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
         // setLatestMessage(msg);
         break;
       case 'temp__user_message': {
-        // console.log('user message: ', data);
-        const { body, is_user_created, parent_message_id, message_id } = data.event;
+        console.log('user message: ', data);
+        const { body, is_user_created, parent_message_id, message_id, is_blocked, is_redacted } =
+          data.event;
         const { conversation_id, is_error } = data;
 
         const msg = {
@@ -237,6 +238,8 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
           conversationId: conversation_id,
           messageId: message_id,
           error: is_error,
+          isBlocked: is_blocked,
+          isRedacted: is_redacted,
         };
 
         const tempMsgIndex = currentMessages.findIndex((msg) => msg.messageId === 'tempMessage');
@@ -248,7 +251,7 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
         break;
       }
       case 'temp__bot_message': {
-        // console.log('bot message: ', data);
+        console.log('bot message: ', data);
         const {
           body,
           is_user_created,
@@ -260,6 +263,8 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
           selected_model_id,
           reason,
           is_cache_result,
+          is_blocked,
+          is_redacted,
         } = data.event;
         const { conversation_id, is_error } = data;
         const msg = {
@@ -275,7 +280,18 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
           policyMessage: policy_message,
           systemMessage: system_message,
           isCacheResult: is_cache_result,
+          isBlocked: is_blocked,
+          isRedacted: is_redacted,
         };
+
+        // another way to check if prompt was blocked
+        // (for handling model response)
+        if (msg.text === null) {
+          msg.modelId = null;
+          msg.modelReason = null;
+          msg.text = msg.systemMessage;
+          msg.systemMessage = null;
+        }
 
         setMessages([...currentMessages, msg]);
 

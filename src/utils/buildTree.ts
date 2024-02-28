@@ -61,8 +61,19 @@ export function buildMessagesFromEvents({ events, user }) {
   let conversationId = null;
   let modelId = null;
   let modelReason = null;
+  let promptBlocked = false;
+  let promptRedacted = false;
+  let responseBlocked = false;
+  let responseRedacted = false;
+  let modelPolicyResults = null;
+  let modelPolicyMessage = null;
+  let modelSystemMessage = null;
+  let userPolicyResults = null;
+  let userPolicyMessage = null;
+  let userSystemMessage = null;
   let message: any = {};
   events.forEach((event: any) => {
+    //console.log(event)
     switch (event.event_type) {
       case EVENT_TYPES.INIT_CONVERSATION:
         conversationId = event.event.conversation_id;
@@ -71,22 +82,27 @@ export function buildMessagesFromEvents({ events, user }) {
         interactionId = event.event.interaction_id;
         break;
       case EVENT_TYPES.PROCESS_PROMPT:
-        message.policyResults = event.event.policy_results;
-        message.policyMessage = event.event.policy_message;
-        message.systemMessage = event.event.system_message;
+        userPolicyResults = event.event.policy_results;
+        userPolicyMessage = event.event.policy_message;
+        userSystemMessage = event.event.system_message;
+
+        promptBlocked = !!event.event.is_blocked;
+        promptRedacted = !!event.event.is_redacted;
         break;
       case EVENT_TYPES.ROUTE_PROMPT:
         modelId = event.event.selected_model_id;
         modelReason = event.event.reason;
-
         break;
       case EVENT_TYPES.GENERATE_RESPONSE:
         message.isCacheResult = event.event.is_cache_result;
         break;
       case EVENT_TYPES.PROCESS_RESPONSE:
-        message.policyResults = event.event.policy_results;
-        message.policyMessage = event.event.policy_message;
-        message.systemMessage = event.event.system_message;
+        modelPolicyResults = event.event.policy_results;
+        modelPolicyMessage = event.event.policy_message;
+        modelSystemMessage = event.event.system_message;
+
+        responseBlocked = !!event.event.is_blocked;
+        responseRedacted = !!event.event.is_redacted;
         break;
       case EVENT_TYPES.MESSAGE:
         message.isCreatedByUser = event.event.is_user_created;
@@ -99,8 +115,27 @@ export function buildMessagesFromEvents({ events, user }) {
         message.interactionId = interactionId;
 
         if (!message.isCreatedByUser) {
+          message.policyMessage = event.event.policy_message || modelPolicyMessage;
+          message.policyResults = event.event.policy_results || modelPolicyResults;
+          message.systemMessage = event.event.system_message || modelSystemMessage;
+          message.isBlocked = responseBlocked;
+          message.isRedacted = responseRedacted;
           message.modelId = modelId;
           message.modelReason = modelReason;
+          // another way to check if prompt was blocked
+          // (handling response)
+          if (message.text === null) {
+            message.modelId = null;
+            message.modelReason = null;
+            message.text = message.systemMessage;
+            message.systemMessage = null;
+          }
+        } else {
+          message.policyMessage = userPolicyMessage;
+          message.policyResults = userPolicyResults;
+          message.systemMessage = userSystemMessage;
+          message.isBlocked = promptBlocked;
+          message.isRedacted = promptRedacted;
         }
 
         messages.push(message);
@@ -110,7 +145,7 @@ export function buildMessagesFromEvents({ events, user }) {
         throw Error('Unexpected event caught: ', event);
     }
   });
-
+  console.log('[BUILT MESSAGES]: ', messages);
   return messages;
 }
 

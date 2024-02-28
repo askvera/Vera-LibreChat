@@ -84,8 +84,10 @@ export default function Conversation({ conversation, retainView, toggleNav, isLa
             value={titleInput}
             onChange={(e) => setTitleInput(e.target.value)}
           />
+        ) : title?.includes('&lt;REDACTED&gt;') ? (
+          'Redacted Conversation'
         ) : (
-          title.replaceAll('&lt;REDACTED&gt;', 'Redacted Conversation')
+          title
         )}
       </div>
       {activeConvo ? (

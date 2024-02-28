@@ -137,11 +137,15 @@ export default function Message(props: TMessageProps) {
 
                   {!isCreatedByUser && (
                     <>
-                      <span
-                        className="hidden lg:block"
-                        style={{ background: '#DADCE5', height: '16px', width: 1 }}
-                      />
-                      <div className="flex items-center gap-2 mt-1 lg:mt-0">
+                      {(!!message.modelId ||
+                        !!message.systemMessage ||
+                        !!message.isCacheResult) && (
+                        <span
+                          className="hidden lg:block"
+                          style={{ background: '#DADCE5', height: '16px', width: 1 }}
+                        />
+                      )}
+                      <div className="mt-1 flex items-center gap-2 lg:mt-0">
                         {message.modelId && (
                           <MessageInfoChip text={message.modelId} color={VERA_TEAL} bg="#30A9E51A">
                             {message.modelReason}

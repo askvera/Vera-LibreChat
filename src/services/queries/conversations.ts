@@ -38,7 +38,7 @@ export function useConversations() {
     queryFn: () => getAllUserConversations(user?.user_id!),
     enabled: !!user?.user_id,
     onSuccess(data) {
-      console.log('got conversations: ', data);
+      console.log('[USECONVERSATIONS]: ', data);
     },
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
