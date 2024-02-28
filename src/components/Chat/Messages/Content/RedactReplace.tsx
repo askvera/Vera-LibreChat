@@ -35,9 +35,11 @@ export const RedactReplace = ({ content, policyMessage }: RedactReplaceProps) =>
                   <LockIcon /> REDACTED
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={-5}>
-                {policyMessage}
-              </TooltipContent>
+              {policyMessage && (
+                <TooltipContent side="top" sideOffset={-5}>
+                  {policyMessage}
+                </TooltipContent>
+              )}
             </Tooltip>
           </TooltipProvider>
         );
@@ -72,9 +74,11 @@ export const BlockReplace = ({ content, policyMessage }: BlockReplaceProps) => {
                   <BlockedIcon /> CONTENT BLOCKED
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={-5}>
-                {policyMessage}
-              </TooltipContent>
+              {policyMessage && (
+                <TooltipContent side="top" sideOffset={-5}>
+                  {policyMessage}
+                </TooltipContent>
+              )}
             </Tooltip>
           </TooltipProvider>
         );

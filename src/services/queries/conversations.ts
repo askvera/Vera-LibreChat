@@ -5,6 +5,7 @@ import {
   getConversationMessages,
 } from '../api/conversations';
 import { useAuthStore } from '~/zustand';
+import { useLocation } from 'react-router-dom';
 
 export function useConversationEvents(conversationId: string | null) {
   return useQuery({
@@ -18,15 +19,24 @@ export function useConversationEvents(conversationId: string | null) {
 }
 
 export function useConversationMessages(conversationId: string | null) {
+  const location = useLocation();
   const { user } = useAuthStore();
 
   return useQuery({
     queryKey: ['messages', conversationId],
-    queryFn: () => getConversationMessages(conversationId!, user!),
+    queryFn: () => {
+      if (location.state?.shallow) {
+        return location.state.messages;
+      }
+      return getConversationMessages(conversationId!, user!);
+    },
     enabled: !!conversationId && !!user,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
+    onSuccess: () => {
+      location.state = null;
+    },
   });
 }
 

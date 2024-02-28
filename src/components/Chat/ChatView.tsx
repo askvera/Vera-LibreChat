@@ -1,4 +1,4 @@
-import { memo, useMemo, useEffect } from 'react';
+import { memo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useParams } from 'react-router-dom';
 import { useGetMessagesByConvoId } from 'librechat-data-provider/react-query';
@@ -7,7 +7,7 @@ import { useVeraChat, useSSE } from '~/hooks';
 import MessagesView from './Messages/MessagesView';
 // import OptionsBar from './Input/OptionsBar';
 import { useGetFiles } from '~/data-provider';
-import { buildTree, mapFiles } from '~/utils';
+import { mapFiles } from '~/utils';
 import { Spinner } from '~/components/svg';
 import { ChatContext } from '~/Providers';
 import Presentation from './Presentation';
@@ -17,14 +17,10 @@ import Header from './Header';
 import Footer from './Footer';
 import store from '~/store';
 import { useConversationEvents, useConversationMessages } from '~/services/queries/conversations';
-import {
-  buildMessageTreeFromEvents,
-  buildMessageTreeFromMessages,
-  buildMessagesFromEvents,
-} from '~/utils/buildTree';
-import { useAuthStore } from '~/zustand';
+import { buildMessageTreeFromMessages } from '~/utils/buildTree';
+import React from 'react';
 
-function ChatView({ index = 0 }: { index?: number }) {
+function ChatView() {
   const { conversationId } = useParams();
   const chatHelpers = useVeraChat(conversationId, conversationId);
   const { data = null, isLoading } = useConversationMessages(conversationId ?? ''); // 'c985dc60-0f72-4de4-a774-38b39dc22e19'

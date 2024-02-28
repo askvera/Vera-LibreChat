@@ -143,10 +143,9 @@ export default function useVeraChat(index = 0, paramId: string | undefined) {
         const convoId =
           conversationId ?? conversation?.conversation_id ?? lastMessage?.conversationId ?? null;
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        console.log('convoId', convoId);
-        if (convoId) {
+        if (convoId && paramId === 'new') {
           const newConvoPathName = `/c/${convoId}`;
-          navigate(newConvoPathName, { state: { shallow: true } });
+          navigate(newConvoPathName, { state: { shallow: true, messages } });
         }
         setCurrEvent('');
         setShowStopButton(false);
