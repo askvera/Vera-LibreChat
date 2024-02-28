@@ -6,7 +6,6 @@ import { useScreenshot, useMessageScrolling, useMessageHandler, useVeraChat } fr
 import { CSSTransition } from 'react-transition-group';
 import MultiMessage from './MultiMessage';
 import ProcessingSpinner from './ProcessingSpinner';
-import VeraMessage from './VeraMessage';
 import VeraErrorMessage from './VeraErrorMessage';
 import { useParams } from 'react-router-dom';
 
@@ -22,14 +21,12 @@ export default function MessagesView({
   const [currentEditId, setCurrentEditId] = useState<number | string | null>(-1);
   const { isSubmitting, currEvent, error } = useVeraChat(conversationId, conversationId);
   const {
-    conversation,
     scrollableRef,
     messagesEndRef,
     showScrollButton,
     handleSmoothToRef,
     debouncedHandleScroll,
   } = useMessageScrolling(_messagesTree);
-  console.log('[MESSAGESVIEW] conversation: ', conversation);
 
   return (
     <div className="flex-1 overflow-hidden overflow-y-auto">

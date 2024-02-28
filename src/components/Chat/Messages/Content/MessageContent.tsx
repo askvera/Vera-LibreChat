@@ -9,7 +9,7 @@ import Container from './Container';
 import Markdown from './Markdown';
 import { cn } from '~/utils';
 import Image from './Image';
-import { RedactReplace } from './RedactReplace';
+import UserMessage from './UserMessage';
 
 const ErrorMessage = ({ text }: TText) => {
   return (
@@ -43,7 +43,7 @@ const DisplayMessage = ({ text, isCreatedByUser, message, showCursor }: TDisplay
       <div
         className={cn(
           'markdown prose dark:prose-invert light w-full break-words',
-          isCreatedByUser ? 'whitespace-pre-wrap dark:text-gray-20' : 'dark:text-gray-70',
+          isCreatedByUser ? 'whitespace-pre-wrap dark:text-gray-20 flex items-center' : 'dark:text-gray-70',
         )}
       >
         {!isCreatedByUser ? (
@@ -51,9 +51,7 @@ const DisplayMessage = ({ text, isCreatedByUser, message, showCursor }: TDisplay
             <Markdown content={text} message={message} showCursor={false} />
           </>
         ) : (
-          <>
-            <RedactReplace content={text} />
-          </>
+          <UserMessage message={message} />
         )}
       </div>
     </Container>

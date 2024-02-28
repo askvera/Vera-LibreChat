@@ -1,13 +1,9 @@
-import { useRecoilValue } from 'recoil';
 import { useState, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { MouseEvent, KeyboardEvent } from 'react';
 import DeleteButton from './NewDeleteButton';
 import RenameButton from './RenameButton';
-import store from '~/store';
 import VeraWhiteLogo from '../svg/VeraWhiteLogo';
-import { useVeraChat } from '~/hooks';
-import { RedactReplace, formatRedactedString } from '../Chat/Messages/Content/RedactReplace';
 
 type KeyEvent = KeyboardEvent<HTMLInputElement>;
 
@@ -88,8 +84,10 @@ export default function Conversation({ conversation, retainView, toggleNav, isLa
             value={titleInput}
             onChange={(e) => setTitleInput(e.target.value)}
           />
+        ) : title?.includes('&lt;REDACTED&gt;') ? (
+          'Redacted Conversation'
         ) : (
-          title.replaceAll('&lt;REDACTED&gt;', 'Redacted Conversation')
+          title
         )}
       </div>
       {activeConvo ? (

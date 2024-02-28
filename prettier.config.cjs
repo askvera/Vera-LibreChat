@@ -1,6 +1,6 @@
 // v0.6.6
 module.exports = {
-  tailwindConfig: './client/tailwind.config.cjs',
+  tailwindConfig: './tailwind.config.cjs',
   printWidth: 100,
   tabWidth: 2,
   useTabs: false,

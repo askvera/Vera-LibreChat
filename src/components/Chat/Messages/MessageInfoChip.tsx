@@ -7,7 +7,7 @@ function MessageInfoChip({ children, text, bg, color }) {
     <TooltipProvider delayDuration={50}>
       <Tooltip>
         <div
-          className="px-3 py-1 rounded-full flex items-center max-w-max-content"
+          className="max-w-max-content flex items-center rounded-full px-3 py-1"
           style={{ background: bg, color }}
         >
           <span className="mr-2">{text}</span>{' '}
